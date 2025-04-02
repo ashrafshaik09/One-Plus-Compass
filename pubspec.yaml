@@ -1,0 +1,52 @@
+name: compass_2
+description: "An advanced compass app with navigation and orientation features"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  
+  # Location and sensors - using a different location plugin approach
+  location: ^5.0.3
+  flutter_compass: ^0.8.0
+  permission_handler: ^11.0.1
+  
+  # Maps and navigation - using a simplified approach
+  # google_maps_flutter: ^2.4.0  # Commenting out problematic dependency
+  flutter_map: ^6.1.0  # Using this as alternative to Google Maps
+  latlong2: ^0.9.0    # Required by flutter_map
+  
+  # UI components
+  flutter_svg: ^2.0.9
+  lottie: ^3.3.1
+  
+  # State management
+  provider: ^6.1.1
+  
+  # Storage
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
+
+# Configure app icon
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  adaptive_icon_background: "#6750A4"
+  adaptive_icon_foreground: "assets/images/app_icon_foreground.png"
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/

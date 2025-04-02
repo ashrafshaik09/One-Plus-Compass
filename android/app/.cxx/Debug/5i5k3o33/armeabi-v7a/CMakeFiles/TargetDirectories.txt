@@ -1,0 +1,2 @@
+D:/Visual Studio (Web)/Oneplus compass/compass_2/android/app/.cxx/Debug/5i5k3o33/armeabi-v7a/CMakeFiles/edit_cache.dir
+D:/Visual Studio (Web)/Oneplus compass/compass_2/android/app/.cxx/Debug/5i5k3o33/armeabi-v7a/CMakeFiles/rebuild_cache.dir
