@@ -53,102 +53,139 @@ class _ElevationScreenState extends State<ElevationScreen> {
 
         final elevation = locationProvider.currentElevation;
         final formattedElevation = locationProvider.elevationText;
-
-        return Padding(
+        
+        // Use ListView to enable scrolling and prevent overflow
+        return ListView(
           padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 24),
-              // Elevation meter
+          children: [
+            // Elevation meter
+            Container(
+              height: 220, // Reduce height to avoid overflow
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: AppTheme.elevationBackgroundColor,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.terrain,
+                      size: 48,
+                      color: AppTheme.primaryColor,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Current Elevation',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      formattedElevation,
+                      style: Theme.of(context).textTheme.displayLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Above Sea Level',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            // Location name card
+            if (locationProvider.currentPosition?.placeName != null)
               Container(
-                height: 300,
-                decoration: BoxDecoration(
-                  color: AppTheme.elevationBackgroundColor,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.terrain,
-                        size: 48,
-                        color: AppTheme.primaryColor,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Current Elevation',
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        formattedElevation,
-                        style: Theme.of(context).textTheme.displayLarge,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Above Sea Level',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
+                margin: const EdgeInsets.only(bottom: 24),
+                child: Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Current Location',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          locationProvider.currentPosition?.placeName ?? 'Unknown Location',
+                          style: const TextStyle(
+                            fontSize: 20, 
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.primaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 32),
-              // Additional information
-              Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.location_on, color: AppTheme.accentColor),
-                        title: const Text('Latitude'),
-                        trailing: Text(
-                          locationProvider.currentPosition!.latitude.toStringAsFixed(6),
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
+            
+            // Additional information
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.location_on, color: AppTheme.accentColor),
+                      title: const Text('Latitude'),
+                      trailing: Text(
+                        locationProvider.currentPosition!.latitude.toStringAsFixed(6),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      const Divider(),
-                      ListTile(
-                        leading: const Icon(Icons.location_on, color: AppTheme.accentColor),
-                        title: const Text('Longitude'),
-                        trailing: Text(
-                          locationProvider.currentPosition!.longitude.toStringAsFixed(6),
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.location_on, color: AppTheme.accentColor),
+                      title: const Text('Longitude'),
+                      trailing: Text(
+                        locationProvider.currentPosition!.longitude.toStringAsFixed(6),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      const Divider(),
-                      ListTile(
-                        leading: const Icon(Icons.speed, color: AppTheme.accentColor),
-                        title: const Text('Accuracy'),
-                        trailing: Text(
-                          '${locationProvider.currentPosition!.accuracy.toStringAsFixed(1)} m',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.speed, color: AppTheme.accentColor),
+                      title: const Text('Accuracy'),
+                      trailing: Text(
+                        '${locationProvider.currentPosition!.accuracy.toStringAsFixed(1)} m',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-              const Spacer(),
-              // Refresh button
-              ElevatedButton.icon(
+            ),
+            
+            // Refresh button
+            Container(
+              margin: const EdgeInsets.only(top: 24),
+              child: ElevatedButton.icon(
                 onPressed: () {
                   locationProvider.getCurrentLocation();
                 },
                 icon: const Icon(Icons.refresh),
-                label: const Text('Refresh Elevation Data'),
+                label: const Text('Refresh Location Data'),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );

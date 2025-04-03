@@ -12,7 +12,10 @@ class CompassScreen extends StatefulWidget {
   State<CompassScreen> createState() => _CompassScreenState();
 }
 
-class _CompassScreenState extends State<CompassScreen> {
+class _CompassScreenState extends State<CompassScreen> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true; // Keep state when switching tabs
+
   @override
   void initState() {
     super.initState();
@@ -25,6 +28,8 @@ class _CompassScreenState extends State<CompassScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    
     return Consumer2<CompassProvider, LocationProvider>(
       builder: (context, compassProvider, locationProvider, _) {
         // Calculate Qibla direction when location is available
@@ -44,35 +49,34 @@ class _CompassScreenState extends State<CompassScreen> {
           );
         }
 
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 16),
-              // The main compass widget
-              Expanded(
-                flex: 5,
-                child: CompassWidget(
-                  heading: compassProvider.heading,
-                  qiblaAngle: compassProvider.qiblaAngle,
+        return SingleChildScrollView( // Enable scrolling to prevent overflow
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 16),
+                // The main compass widget
+                SizedBox(
+                  height: 280, // Fixed height to prevent layout issues
+                  child: CompassWidget(
+                    heading: compassProvider.heading,
+                    qiblaAngle: compassProvider.qiblaAngle,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              // Heading text
-              Text(
-                compassProvider.headingDegrees,
-                style: Theme.of(context).textTheme.displayLarge,
-              ),
-              Text(
-                compassProvider.headingText,
-                style: Theme.of(context).textTheme.displayMedium,
-              ),
-              const SizedBox(height: 16),
-              // Additional info cards
-              Expanded(
-                flex: 2,
-                child: Row(
+                const SizedBox(height: 24),
+                // Heading text
+                Text(
+                  compassProvider.headingDegrees,
+                  style: Theme.of(context).textTheme.displayLarge,
+                ),
+                Text(
+                  compassProvider.headingText,
+                  style: Theme.of(context).textTheme.displayMedium,
+                ),
+                const SizedBox(height: 16),
+                // Additional info cards
+                Row(
                   children: [
                     _buildInfoCard(
                       context,
@@ -89,8 +93,45 @@ class _CompassScreenState extends State<CompassScreen> {
                     ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                // Location name card
+                if (locationProvider.currentPosition?.placeName != null)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.location_on, color: AppTheme.accentColor),
+                              SizedBox(width: 8),
+                              Text(
+                                'Current Location',
+                                style: TextStyle(
+                                  fontSize: 16, 
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            locationProvider.currentPosition?.placeName ?? '',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.primaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         );
       },
@@ -115,7 +156,10 @@ class _CompassScreenState extends State<CompassScreen> {
               const SizedBox(height: 4),
               Text(
                 value,
-                style: Theme.of(context).textTheme.displayMedium,
+                textAlign: TextAlign.center, // Center text for better alignment
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),

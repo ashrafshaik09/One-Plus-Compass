@@ -18,9 +18,28 @@ class CompassProvider with ChangeNotifier {
   String get headingText {
     if (_heading < 0) return "Unknown";
     
-    const List<String> directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW", "N"];
-    final index = ((_heading + 22.5) % 360) ~/ 45;
-    return directions[index];
+    // Use exact boundary checks to ensure West is shown correctly
+    final double normalizedHeading = _heading % 360;
+    
+    if (normalizedHeading >= 337.5 || normalizedHeading < 22.5) {
+      return "N";
+    } else if (normalizedHeading >= 22.5 && normalizedHeading < 67.5) {
+      return "NE";
+    } else if (normalizedHeading >= 67.5 && normalizedHeading < 112.5) {
+      return "E";
+    } else if (normalizedHeading >= 112.5 && normalizedHeading < 157.5) {
+      return "SE";
+    } else if (normalizedHeading >= 157.5 && normalizedHeading < 202.5) {
+      return "S";
+    } else if (normalizedHeading >= 202.5 && normalizedHeading < 247.5) {
+      return "SW";
+    } else if (normalizedHeading >= 247.5 && normalizedHeading < 292.5) {
+      return "W";
+    } else if (normalizedHeading >= 292.5 && normalizedHeading < 337.5) {
+      return "NW";
+    }
+    
+    return "N"; // Default fallback
   }
   
   // Formatted heading in degrees

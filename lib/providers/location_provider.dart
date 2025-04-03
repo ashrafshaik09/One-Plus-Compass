@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:location/location.dart';
+import 'package:location/location.dart' as loc;
 import 'package:permission_handler/permission_handler.dart' as permission;
+import 'package:geocoding/geocoding.dart';
 import 'dart:async';
 
 class LocationData {
@@ -12,6 +13,7 @@ class LocationData {
   final double speed;
   final double speedAccuracy;
   final double time;
+  String? placeName; // Add place name field
 
   LocationData({
     required this.latitude,
@@ -22,11 +24,12 @@ class LocationData {
     required this.speed,
     required this.speedAccuracy,
     required this.time,
+    this.placeName,
   });
 }
 
 class LocationProvider with ChangeNotifier {
-  final Location _location = Location();
+  final loc.Location _location = loc.Location();
   LocationData? _currentPosition;
   bool _isLoading = false;
   String _errorMessage = '';
@@ -41,13 +44,18 @@ class LocationProvider with ChangeNotifier {
   List<LocationData> get pathHistory => _pathHistory;
   bool get isRecordingPath => _isRecordingPath;
   
-  // Current elevation in meters
+  // Current elevation in meters - ensure it's positive for display purposes
   double get currentElevation => _currentPosition?.altitude ?? 0.0;
   
   // Formatted elevation (e.g., "123 m")
   String get elevationText {
     if (_currentPosition == null) return "-- m";
-    return "${currentElevation.toStringAsFixed(1)} m";
+    
+    // Always display elevation as positive with proper formatting
+    final double elevation = _currentPosition!.altitude;
+    
+    // Format elevation with appropriate precision
+    return "${elevation.abs().toStringAsFixed(1)} m";
   }
   
   LocationProvider() {
@@ -93,9 +101,9 @@ class LocationProvider with ChangeNotifier {
       
       if (permissionStatus.isGranted) {
         var permissionStatus = await _location.hasPermission();
-        if (permissionStatus == PermissionStatus.denied) {
+        if (permissionStatus == loc.PermissionStatus.denied) {
           permissionStatus = await _location.requestPermission();
-          if (permissionStatus != PermissionStatus.granted) {
+          if (permissionStatus != loc.PermissionStatus.granted) {
             _errorMessage = 'Location permissions are denied';
             _isLoading = false;
             notifyListeners();
@@ -122,8 +130,8 @@ class LocationProvider with ChangeNotifier {
     notifyListeners();
     
     try {
-      _location.enableBackgroundMode();
-      _location.changeSettings(accuracy: LocationAccuracy.high);
+      _location.enableBackgroundMode(enable: true);
+      _location.changeSettings(accuracy: loc.LocationAccuracy.high);
       
       final locationData = await _location.getLocation();
       _currentPosition = LocationData(
@@ -136,6 +144,9 @@ class LocationProvider with ChangeNotifier {
         speedAccuracy: locationData.speedAccuracy ?? 0.0,
         time: locationData.time ?? 0.0,
       );
+
+      // Fetch location name
+      await _getPlaceName();
       
       _isLoading = false;
       notifyListeners();
@@ -143,6 +154,39 @@ class LocationProvider with ChangeNotifier {
       _errorMessage = 'Failed to get location: $e';
       _isLoading = false;
       notifyListeners();
+    }
+  }
+  
+  // New method to get place name
+  Future<void> _getPlaceName() async {
+    if (_currentPosition == null) return;
+    
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+      );
+      
+      if (placemarks.isNotEmpty) {
+        final place = placemarks.first;
+        final List<String> addressParts = [];
+        
+        if (place.locality?.isNotEmpty == true) {
+          addressParts.add(place.locality!);
+        }
+        if (place.subAdministrativeArea?.isNotEmpty == true) {
+          addressParts.add(place.subAdministrativeArea!);
+        }
+        if (place.country?.isNotEmpty == true) {
+          addressParts.add(place.country!);
+        }
+        
+        _currentPosition!.placeName = addressParts.join(', ');
+        notifyListeners();
+      }
+    } catch (e) {
+      print('Error getting place name: $e');
+      // Don't update UI on error here, just log it
     }
   }
   
