@@ -10,7 +10,10 @@ class ElevationScreen extends StatefulWidget {
   State<ElevationScreen> createState() => _ElevationScreenState();
 }
 
-class _ElevationScreenState extends State<ElevationScreen> {
+class _ElevationScreenState extends State<ElevationScreen> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true; // Add this to preserve the state
+
   @override
   void initState() {
     super.initState();
@@ -23,6 +26,7 @@ class _ElevationScreenState extends State<ElevationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for keep alive mixin
     return Consumer<LocationProvider>(
       builder: (context, locationProvider, _) {
         if (locationProvider.isLoading) {
@@ -54,44 +58,143 @@ class _ElevationScreenState extends State<ElevationScreen> {
         final elevation = locationProvider.currentElevation;
         final formattedElevation = locationProvider.elevationText;
         
-        // Use ListView to enable scrolling and prevent overflow
+        // Enhanced elevation screen with better data visualization
         return ListView(
           padding: const EdgeInsets.all(24.0),
           children: [
-            // Elevation meter
+            // Enhanced elevation meter with improved visualization
             Container(
-              height: 220, // Reduce height to avoid overflow
+              height: 250, // Increased height for better visualization
               margin: const EdgeInsets.only(bottom: 24),
               decoration: BoxDecoration(
                 color: AppTheme.elevationBackgroundColor,
                 borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.terrain,
-                      size: 48,
-                      color: AppTheme.primaryColor,
+              child: Stack(
+                children: [
+                  // New: Elevation scale markers
+                  Positioned(
+                    right: 8,
+                    top: 20,
+                    bottom: 20,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: List.generate(5, (index) {
+                        final value = (1000 - index * 500).toString();
+                        return Text(
+                          '$value m',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade600,
+                          ),
+                        );
+                      }),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Current Elevation',
-                      style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+
+                  // Improved sea level indicator
+                  Positioned(
+                    left: 24,
+                    right: 40, // Adjusted for scale markers
+                    top: 125, // Centered
+                    child: Container(
+                      height: 2,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.blue.shade700,
+                            Colors.blue.shade700.withOpacity(0.3),
+                          ],
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade700,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'Sea Level',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      formattedElevation,
-                      style: Theme.of(context).textTheme.displayLarge,
+                  ),
+                  
+                  // Enhanced elevation indicator
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeInOut,
+                    left: 0,
+                    right: 0,
+                    top: elevation >= 0 
+                        ? _calculateTopPosition(elevation)
+                        : _calculateBottomPosition(elevation),
+                    child: Center(
+                      child: Container(
+                        width: 200,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              elevation < 0 ? Icons.arrow_downward : Icons.arrow_upward,
+                              size: 32,
+                              color: elevation < 0 ? Colors.red : AppTheme.primaryColor,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              formattedElevation,
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: elevation < 0 ? Colors.red : AppTheme.primaryColor,
+                              ),
+                            ),
+                            Text(
+                              _getElevationDescription(elevation),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Above Sea Level',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
             
@@ -171,9 +274,9 @@ class _ElevationScreenState extends State<ElevationScreen> {
               ),
             ),
             
-            // Refresh button
+            // Enhanced refresh button with elevation accuracy information
             Container(
-              margin: const EdgeInsets.only(top: 24),
+              margin: const EdgeInsets.only(top: 24, bottom: 16),
               child: ElevatedButton.icon(
                 onPressed: () {
                   locationProvider.getCurrentLocation();
@@ -185,9 +288,57 @@ class _ElevationScreenState extends State<ElevationScreen> {
                 ),
               ),
             ),
+            
+            // Add elevation accuracy note
+            Text(
+              'Note: Elevation accuracy can vary by ±${locationProvider.currentPosition!.accuracy.toStringAsFixed(0)}m depending on your device sensors.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                color: Colors.grey.shade600,
+              ),
+            ),
           ],
         );
       },
     );
   }
+
+  // New helper methods for elevation positioning
+  double _calculateTopPosition(double elevation) {
+    const double maxElevation = 1000.0; // Maximum elevation to consider
+    const double minTop = 20.0; // Minimum distance from top
+    const double maxTop = 125.0; // Sea level position
+    
+    // Clamp elevation between 0 and maxElevation
+    final double clampedElevation = elevation.clamp(0.0, maxElevation);
+    
+    // Calculate position proportionally
+    return maxTop - ((clampedElevation / maxElevation) * (maxTop - minTop));
+  }
+
+  double _calculateBottomPosition(double elevation) {
+    const double maxDepth = -200.0; // Maximum depth to consider
+    const double minBottom = 125.0; // Sea level position
+    const double maxBottom = 230.0; // Maximum distance from top
+    
+    // Clamp elevation between maxDepth and 0
+    final double clampedElevation = elevation.clamp(maxDepth, 0.0);
+    
+    // Calculate position proportionally
+    return minBottom + ((clampedElevation.abs() / maxDepth.abs()) * (maxBottom - minBottom));
+  }
+}
+
+// Helper to add contextual information about elevation
+String _getElevationDescription(double elevation) {
+  if (elevation < -200) return "Deep depression (well below sea level)";
+  if (elevation < 0) return "Depression (below sea level)";
+  if (elevation < 200) return "Lowland area (near sea level)";
+  if (elevation < 500) return "Low elevation";
+  if (elevation < 1000) return "Moderate elevation";
+  if (elevation < 2000) return "High elevation";
+  if (elevation < 3000) return "Very high elevation";
+  return "Extremely high elevation (mountainous)";
 }

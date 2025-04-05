@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:location/location.dart' as loc;
 import 'package:permission_handler/permission_handler.dart' as permission;
 import 'package:geocoding/geocoding.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'dart:async';
+import 'dart:math' as math;
 
 class LocationData {
   final double latitude;
@@ -13,7 +16,7 @@ class LocationData {
   final double speed;
   final double speedAccuracy;
   final double time;
-  String? placeName; // Add place name field
+  String? placeName;
 
   LocationData({
     required this.latitude,
@@ -26,6 +29,67 @@ class LocationData {
     required this.time,
     this.placeName,
   });
+  
+  // Added serialization methods for saving paths
+  Map<String, dynamic> toJson() => {
+    'latitude': latitude,
+    'longitude': longitude,
+    'altitude': altitude,
+    'accuracy': accuracy,
+    'heading': heading,
+    'speed': speed,
+    'speedAccuracy': speedAccuracy,
+    'time': time,
+    'placeName': placeName,
+  };
+  
+  factory LocationData.fromJson(Map<String, dynamic> json) => LocationData(
+    latitude: json['latitude'],
+    longitude: json['longitude'],
+    altitude: json['altitude'],
+    accuracy: json['accuracy'],
+    heading: json['heading'],
+    speed: json['speed'],
+    speedAccuracy: json['speedAccuracy'],
+    time: json['time'],
+    placeName: json['placeName'],
+  );
+}
+
+class SavedPath {
+  final String id;
+  final String name;
+  final DateTime createdAt;
+  final List<LocationData> points;
+  final double distance; // in meters
+  final double elevationGain; // in meters
+  
+  SavedPath({
+    required this.id,
+    required this.name,
+    required this.createdAt,
+    required this.points,
+    required this.distance,
+    required this.elevationGain,
+  });
+  
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'createdAt': createdAt.toIso8601String(),
+    'points': points.map((point) => point.toJson()).toList(),
+    'distance': distance,
+    'elevationGain': elevationGain,
+  };
+  
+  factory SavedPath.fromJson(Map<String, dynamic> json) => SavedPath(
+    id: json['id'],
+    name: json['name'],
+    createdAt: DateTime.parse(json['createdAt']),
+    points: (json['points'] as List).map((p) => LocationData.fromJson(p)).toList(),
+    distance: json['distance'],
+    elevationGain: json['elevationGain'],
+  );
 }
 
 class LocationProvider with ChangeNotifier {
@@ -37,29 +101,263 @@ class LocationProvider with ChangeNotifier {
   Timer? _positionUpdateTimer;
   bool _isRecordingPath = false;
   
+  // Add saved paths
+  List<SavedPath> _savedPaths = [];
+  
   // Getters
   LocationData? get currentPosition => _currentPosition;
   bool get isLoading => _isLoading;
   String get errorMessage => _errorMessage;
   List<LocationData> get pathHistory => _pathHistory;
   bool get isRecordingPath => _isRecordingPath;
+  List<SavedPath> get savedPaths => _savedPaths;
   
-  // Current elevation in meters - ensure it's positive for display purposes
-  double get currentElevation => _currentPosition?.altitude ?? 0.0;
+  // Improved elevation calculation to handle real-world issues
+  double get currentElevation {
+    if (_currentPosition == null) return 0.0;
+    double value = _currentPosition!.altitude;
+    
+    // Handle invalid values - some devices report negative values
+    // when they should be positive (elevation above sea level)
+    if (value < -1000) return 0.0; // Likely a sensor error
+    
+    return value;
+  }
   
-  // Formatted elevation (e.g., "123 m")
+  // Formatted elevation with better handling of edge cases
   String get elevationText {
     if (_currentPosition == null) return "-- m";
     
-    // Always display elevation as positive with proper formatting
-    final double elevation = _currentPosition!.altitude;
+    double elevation = _currentPosition!.altitude;
     
-    // Format elevation with appropriate precision
-    return "${elevation.abs().toStringAsFixed(1)} m";
+    // Handle potential sensor errors (extremely negative values)
+    if (elevation < -1000) {
+      return "Sensor error";
+    }
+    
+    // Format based on whether it's below sea level
+    if (elevation < 0) {
+      return "${elevation.abs().toStringAsFixed(1)} m (below sea level)";
+    }
+    return "${elevation.toStringAsFixed(1)} m";
+  }
+  
+  // New getter for safe elevation that validates and corrects common issues
+  double get safeElevation {
+    if (_currentPosition == null) return 0.0;
+    
+    // Get raw altitude from position
+    double rawElevation = _currentPosition!.altitude;
+    
+    // Apply validation logic
+    // 1. If sensor reports extreme values (below -1000m), assume sensor error
+    if (rawElevation < -1000) return 0.0;
+    
+    // 2. If sensor reports small negative values when likely at sea level
+    if (rawElevation > -10 && rawElevation < 0) {
+      // If we're near coastline or at low accuracy, assume sea level
+      if (_currentPosition!.accuracy > 20) return 0.0;
+    }
+    
+    // 3. If sensor reports unrealistically high elevations
+    if (rawElevation > 8848) { // Higher than Everest
+      return 8848.0;
+    }
+    
+    return rawElevation;
   }
   
   LocationProvider() {
     _initializeLocation();
+    _loadSavedPaths();
+  }
+  
+  // Load saved paths from SharedPreferences
+  Future<void> _loadSavedPaths() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedPathsJson = prefs.getString('saved_paths');
+      
+      if (savedPathsJson != null) {
+        final List<dynamic> decoded = jsonDecode(savedPathsJson);
+        _savedPaths = decoded.map((json) => SavedPath.fromJson(json)).toList();
+        notifyListeners();
+      }
+    } catch (e) {
+      print('Error loading saved paths: $e');
+      _savedPaths = [];
+      notifyListeners();
+    }
+  }
+  
+  // Save current path to persistent storage
+  Future<bool> saveCurrentPath(String name) async {
+    if (_pathHistory.isEmpty) return false;
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Create a deep copy of the path history
+      final List<LocationData> pathCopy = List.from(_pathHistory);
+      
+      // Calculate statistics
+      final totalDistance = calculatePathDistance();
+      final elevationGain = calculateElevationGain();
+      
+      // Create new saved path
+      final newPath = SavedPath(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: name,
+        createdAt: DateTime.now(),
+        points: pathCopy,
+        distance: totalDistance,
+        elevationGain: elevationGain,
+      );
+      
+      // Add to saved paths list
+      _savedPaths.add(newPath);
+      
+      // Convert all paths to JSON
+      final List<Map<String, dynamic>> pathsJson = _savedPaths.map((p) => p.toJson()).toList();
+      
+      // Save to SharedPreferences
+      await prefs.setString('saved_paths', jsonEncode(pathsJson));
+      
+      // Clear current path history after saving
+      _pathHistory.clear();
+      
+      notifyListeners();
+      return true;
+    } catch (e) {
+      print('Error saving path: $e');
+      return false;
+    }
+  }
+  
+  // Delete a saved path
+  Future<void> deleteSavedPath(String id) async {
+    _savedPaths.removeWhere((path) => path.id == id);
+    await _persistSavedPaths();
+    notifyListeners();
+  }
+  
+  // Load a saved path to current path history
+  void loadSavedPath(String id) {
+    final savedPath = _savedPaths.firstWhere((path) => path.id == id);
+    _pathHistory.clear();
+    _pathHistory.addAll(savedPath.points);
+    notifyListeners();
+  }
+  
+  // Save paths to SharedPreferences with improved error handling
+  Future<void> _persistSavedPaths() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Convert paths to JSON with careful handling
+      final List<Map<String, dynamic>> pathsJson = [];
+      for (final path in _savedPaths) {
+        try {
+          final pathJson = path.toJson();
+          pathsJson.add(pathJson);
+        } catch (e) {
+          print('Error converting path ${path.id} to JSON: $e');
+          // Continue with other paths if one fails
+        }
+      }
+      
+      // Save the valid paths to SharedPreferences
+      final jsonData = jsonEncode(pathsJson);
+      await prefs.setString('saved_paths', jsonData);
+      
+    } catch (e) {
+      print('Error persisting saved paths: $e');
+    }
+  }
+  
+  // Calculate total path distance in meters
+  double _calculatePathDistance() {
+    if (_pathHistory.length < 2) return 0;
+    
+    double totalDistance = 0;
+    for (int i = 0; i < _pathHistory.length - 1; i++) {
+      final point1 = _pathHistory[i];
+      final point2 = _pathHistory[i + 1];
+      
+      // Using Haversine formula
+      const int earthRadius = 6371000; // in meters
+      final lat1 = point1.latitude * (math.pi / 180);
+      final lat2 = point2.latitude * (math.pi / 180);
+      final dLat = (point2.latitude - point1.latitude) * (math.pi / 180);
+      final dLon = (point2.longitude - point1.longitude) * (math.pi / 180);
+      
+      final a = math.sin(dLat/2) * math.sin(dLat/2) +
+                math.cos(lat1) * math.cos(lat2) *
+                math.sin(dLon/2) * math.sin(dLon/2);
+      final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a));
+      final distance = earthRadius * c;
+      
+      totalDistance += distance;
+    }
+    
+    return totalDistance;
+  }
+  
+  // Calculate elevation gain (positive changes only)
+  double _calculateElevationGain() {
+    if (_pathHistory.length < 2) return 0;
+    
+    double totalGain = 0;
+    for (int i = 0; i < _pathHistory.length - 1; i++) {
+      final elevChange = _pathHistory[i + 1].altitude - _pathHistory[i].altitude;
+      if (elevChange > 0) {
+        totalGain += elevChange;
+      }
+    }
+    
+    return totalGain;
+  }
+
+  // Make path calculation methods public
+  double calculatePathDistance() {
+    if (_pathHistory.length < 2) return 0;
+    
+    double totalDistance = 0;
+    for (int i = 0; i < _pathHistory.length - 1; i++) {
+      final point1 = _pathHistory[i];
+      final point2 = _pathHistory[i + 1];
+      
+      // Using Haversine formula
+      const int earthRadius = 6371000; // in meters
+      final lat1 = point1.latitude * (math.pi / 180);
+      final lat2 = point2.latitude * (math.pi / 180);
+      final dLat = (point2.latitude - point1.latitude) * (math.pi / 180);
+      final dLon = (point2.longitude - point1.longitude) * (math.pi / 180);
+      
+      final a = math.sin(dLat/2) * math.sin(dLat/2) +
+                math.cos(lat1) * math.cos(lat2) *
+                math.sin(dLon/2) * math.sin(dLon/2);
+      final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a));
+      final distance = earthRadius * c;
+      
+      totalDistance += distance;
+    }
+    
+    return totalDistance;
+  }
+
+  double calculateElevationGain() {
+    if (_pathHistory.length < 2) return 0;
+    
+    double totalGain = 0;
+    for (int i = 0; i < _pathHistory.length - 1; i++) {
+      final elevChange = _pathHistory[i + 1].altitude - _pathHistory[i].altitude;
+      if (elevChange > 0) {
+        totalGain += elevChange;
+      }
+    }
+    
+    return totalGain;
   }
   
   Future<void> _initializeLocation() async {

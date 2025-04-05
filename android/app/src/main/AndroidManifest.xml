@@ -11,9 +11,10 @@
     <uses-feature android:name="android.hardware.sensor.compass" android:required="true" />
     
     <application
-        android:label="Compass Plus"
+        android:label="Complus"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

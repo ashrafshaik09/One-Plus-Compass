@@ -10,16 +10,15 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   
-  # Location and sensors - using a different location plugin approach
+  # Location and sensors
   location: ^5.0.3
   flutter_compass: ^0.8.0
   permission_handler: ^11.0.1
-  geocoding: ^2.1.1  # Add geocoding package for location names
+  geocoding: ^2.1.1
   
-  # Maps and navigation - using a simplified approach
-  # google_maps_flutter: ^2.4.0  # Commenting out problematic dependency
-  flutter_map: ^6.1.0  # Using this as alternative to Google Maps
-  latlong2: ^0.9.0    # Required by flutter_map
+  # Maps and navigation
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
   
   # UI components
   flutter_svg: ^2.0.9
@@ -31,6 +30,17 @@ dependencies:
   # Storage
   shared_preferences: ^2.2.2
   path_provider: ^2.1.1
+  
+  # Prayer times calculation
+  adhan: ^2.0.0-nullsafety.2
+  
+  # Time formatting and manipulation
+  intl: ^0.17.0
+  
+  # App info
+  package_info_plus: ^4.0.2
+  
+  # Note: Removed 'suntime' package as we're implementing our own SunTime class
 
 dev_dependencies:
   flutter_test:

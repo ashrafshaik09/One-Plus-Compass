@@ -15,6 +15,8 @@ class CompassScreen extends StatefulWidget {
 class _CompassScreenState extends State<CompassScreen> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true; // Keep state when switching tabs
+  
+  bool _hasShownCalibrationDialog = false;
 
   @override
   void initState() {
@@ -49,6 +51,14 @@ class _CompassScreenState extends State<CompassScreen> with AutomaticKeepAliveCl
           );
         }
 
+        // Show calibration dialog when needed (but only once per session)
+        if (compassProvider.needsCalibration && !_hasShownCalibrationDialog) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            showCalibrationDialog(context);
+            _hasShownCalibrationDialog = true;
+          });
+        }
+
         return SingleChildScrollView( // Enable scrolling to prevent overflow
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -56,6 +66,11 @@ class _CompassScreenState extends State<CompassScreen> with AutomaticKeepAliveCl
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 16),
+                
+                // Calibration alert if needed
+                if (compassProvider.needsCalibration)
+                  buildCalibrationBanner(),
+                  
                 // The main compass widget
                 SizedBox(
                   height: 280, // Fixed height to prevent layout issues
@@ -164,6 +179,145 @@ class _CompassScreenState extends State<CompassScreen> with AutomaticKeepAliveCl
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // New calibration banner to show as inline notice
+  Widget buildCalibrationBanner() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'Compass needs calibration',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange,
+                  ),
+                ),
+                Text(
+                  'Move your device in a figure-eight pattern',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => showCalibrationDialog(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+              minimumSize: const Size(60, 32),
+            ),
+            child: const Text('Guide'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // New method to show calibration dialog with instructions
+  void showCalibrationDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: const BoxDecoration(
+                  color: Colors.orange,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.compass_calibration,
+                  color: Colors.white,
+                  size: 36,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Compass Needs Calibration',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'For accurate readings, please calibrate your compass by:',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              // Calibration instructions
+              ...[
+                _buildCalibrationStep(1, 'Move your device in a figure-eight pattern'),
+                _buildCalibrationStep(2, 'Rotate your device around all axes'),
+                _buildCalibrationStep(3, 'Keep away from magnetic interference')
+              ],
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  minimumSize: const Size(double.infinity, 45),
+                ),
+                child: const Text('Got it'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildCalibrationStep(int number, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: const BoxDecoration(
+              color: Colors.orange,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                number.toString(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(text),
+          ),
+        ],
       ),
     );
   }

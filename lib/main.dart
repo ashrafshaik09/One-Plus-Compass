@@ -5,6 +5,8 @@ import 'package:compass_2/screens/home_screen.dart';
 import 'package:compass_2/providers/compass_provider.dart';
 import 'package:compass_2/providers/location_provider.dart';
 import 'package:compass_2/providers/theme_provider.dart';
+import 'package:compass_2/providers/prayer_times_provider.dart';
+import 'package:compass_2/providers/celestial_provider.dart';
 import 'package:compass_2/utils/app_theme.dart';
 
 void main() async {
@@ -38,12 +40,14 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CompassProvider()),
         ChangeNotifierProvider(create: (_) => LocationProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => PrayerTimesProvider()),
+        ChangeNotifierProvider(create: (_) => CelestialProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
           return MaterialApp(
             title: 'Compass',
-            debugShowCheckedModeBanner: false, // Remove debug banner
+            debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
