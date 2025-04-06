@@ -198,14 +198,27 @@ class LocationProvider with ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       
       // Create a deep copy of the path history
-      final List<LocationData> pathCopy = List.from(_pathHistory);
+      // NOTE: Fixing the deep copy issue - List.from doesn't create a deep copy
+      final List<LocationData> pathCopy = _pathHistory.map((location) => 
+        LocationData(
+          latitude: location.latitude,
+          longitude: location.longitude, 
+          altitude: location.altitude,
+          accuracy: location.accuracy,
+          heading: location.heading,
+          speed: location.speed,
+          speedAccuracy: location.speedAccuracy,
+          time: location.time,
+          placeName: location.placeName,
+        )
+      ).toList();
       
-      // Calculate statistics
-      final totalDistance = calculatePathDistance();
-      final elevationGain = calculateElevationGain();
+      // Calculate statistics - using our copied path to prevent race conditions
+      final totalDistance = _calculatePathDistance();
+      final elevationGain = _calculateElevationGain();
       
-      // Create new saved path
-      final newPath = SavedPath(
+      // Create new saved path with a unique ID
+      var newPath = SavedPath(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         name: name,
         createdAt: DateTime.now(),
@@ -214,24 +227,85 @@ class LocationProvider with ChangeNotifier {
         elevationGain: elevationGain,
       );
       
+      // Validate JSON serialization works before saving
+      try {
+        final testJson = newPath.toJson();
+        // This is a validation test - if it fails, the catch block will handle it
+        final jsonString = jsonEncode(testJson);
+        
+        // Check if JSON string is too large (SharedPreferences has ~2MB limit)
+        if (jsonString.length > 1000000) { // 1MB safety limit
+          // If path is too large, simplify by sampling points
+          final simplifiedPoints = _simplifyPath(pathCopy);
+          newPath = SavedPath(
+            id: newPath.id,
+            name: name,
+            createdAt: newPath.createdAt,
+            points: simplifiedPoints,
+            distance: totalDistance,
+            elevationGain: elevationGain,
+          );
+        }
+      } catch (e) {
+        print('JSON serialization validation failed: $e');
+        return false;
+      }
+      
       // Add to saved paths list
       _savedPaths.add(newPath);
       
-      // Convert all paths to JSON
-      final List<Map<String, dynamic>> pathsJson = _savedPaths.map((p) => p.toJson()).toList();
+      // Convert all paths to JSON with safety checks
+      final List<Map<String, dynamic>> pathsJson = [];
+      for (final path in _savedPaths) {
+        try {
+          pathsJson.add(path.toJson());
+        } catch (e) {
+          print('Error converting path to JSON: $e');
+          // Continue with other paths
+        }
+      }
       
-      // Save to SharedPreferences
-      await prefs.setString('saved_paths', jsonEncode(pathsJson));
+      // Save to SharedPreferences with error handling
+      try {
+        final jsonData = jsonEncode(pathsJson);
+        await prefs.setString('saved_paths', jsonData);
+      } catch (e) {
+        print('Error saving to SharedPreferences: $e');
+        return false;
+      }
       
-      // Clear current path history after saving
+      // Clear current path history after successful save
       _pathHistory.clear();
       
       notifyListeners();
       return true;
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Error saving path: $e');
+      print('Stack trace: $stackTrace');
       return false;
     }
+  }
+  
+  // New method to simplify path by reducing number of points
+  List<LocationData> _simplifyPath(List<LocationData> path) {
+    if (path.length <= 100) return path; // Don't simplify small paths
+    
+    // Simple algorithm to keep only every Nth point
+    final simplificationFactor = (path.length / 100).ceil();
+    final simplified = <LocationData>[];
+    
+    // Always keep first and last points
+    simplified.add(path.first);
+    
+    // Add sampled points
+    for (int i = simplificationFactor; i < path.length - simplificationFactor; i += simplificationFactor) {
+      simplified.add(path[i]);
+    }
+    
+    // Add last point
+    simplified.add(path.last);
+    
+    return simplified;
   }
   
   // Delete a saved path

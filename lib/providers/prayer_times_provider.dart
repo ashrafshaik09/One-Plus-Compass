@@ -119,9 +119,6 @@ class PrayerTimesProvider with ChangeNotifier {
     // Ensure we're using local time for all comparisons
     final now = DateTime.now();
 
-    // Debug time values
-    print("Current time: ${DateFormat('HH:mm:ss').format(now)}");
-
     // Get prayer times for today and ensure they're properly compared as local time
     final prayers = {
       'Fajr': _prayerTimes!.fajr,
@@ -130,11 +127,6 @@ class PrayerTimesProvider with ChangeNotifier {
       'Maghrib': _prayerTimes!.maghrib,
       'Isha': _prayerTimes!.isha,
     };
-
-    // Print each prayer time for debugging
-    prayers.forEach((name, time) {
-      print("$name time: ${DateFormat('HH:mm:ss').format(time)}");
-    });
 
     // Check if all prayers for today have passed
     bool allPassed = true;
@@ -168,7 +160,6 @@ class PrayerTimesProvider with ChangeNotifier {
 
     // Calculate remaining time with improved formatting
     if (nextPrayerTime != null) {
-      // Convert next prayer time to DateTime with today's date for correct difference calculation
       final nextPrayerDateTime = DateTime(
         now.year, 
         now.month, 
@@ -181,7 +172,6 @@ class PrayerTimesProvider with ChangeNotifier {
       final hours = difference.inHours;
       final minutes = difference.inMinutes % 60;
 
-      // More human-readable remaining time format
       String remainingTimeText;
       if (hours > 0) {
         remainingTimeText = '$hours hr $minutes min remaining';

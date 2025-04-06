@@ -463,46 +463,79 @@ class _TrailScreenState extends State<TrailScreen> with AutomaticKeepAliveClient
   }
   
   void _showSavePathDialog(BuildContext context, LocationProvider provider) {
+    bool isSaving = false;
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Save Path'),
-        content: TextField(
-          controller: _pathNameController,
-          decoration: const InputDecoration(
-            hintText: 'Enter path name',
-            border: OutlineInputBorder(),
+      barrierDismissible: false, // Prevent dismissal while saving
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Save Path'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _pathNameController,
+                decoration: const InputDecoration(
+                  hintText: 'Enter path name',
+                  border: OutlineInputBorder(),
+                ),
+                enabled: !isSaving,
+                autofocus: true,
+              ),
+              if (isSaving) ...[
+                const SizedBox(height: 16),
+                const LinearProgressIndicator(),
+                const SizedBox(height: 8),
+                const Text('Saving path data...', style: TextStyle(color: Colors.grey)),
+              ]
+            ],
           ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('CANCEL'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              if (_pathNameController.text.trim().isNotEmpty) {
-                final success = await provider.saveCurrentPath(
-                  _pathNameController.text.trim(),
-                );
-                Navigator.pop(context);
-                
-                _pathNameController.clear();
-                
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      success ? 'Path saved successfully' : 'Error saving path',
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(context),
+              child: const Text('CANCEL'),
+            ),
+            FilledButton(
+              onPressed: isSaving ? null : () async {
+                if (_pathNameController.text.trim().isNotEmpty) {
+                  setState(() => isSaving = true);
+                  
+                  // Track points count for diagnostics
+                  final pointCount = provider.pathHistory.length;
+                  
+                  final success = await provider.saveCurrentPath(
+                    _pathNameController.text.trim(),
+                  );
+                  
+                  // Even if we pop later, let's clear the text field now
+                  final enteredName = _pathNameController.text;
+                  _pathNameController.clear();
+                  
+                  Navigator.pop(context);
+                  
+                  // Show detailed feedback
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        success 
+                          ? 'Path "$enteredName" saved successfully ($pointCount points)' 
+                          : 'Error saving path: Data may be too large or invalid',
+                      ),
+                      backgroundColor: success ? Colors.green : Colors.red,
+                      action: success ? null : SnackBarAction(
+                        label: 'RETRY',
+                        onPressed: () => _showSavePathDialog(context, provider),
+                      ),
+                      duration: const Duration(seconds: 4),
                     ),
-                    backgroundColor: success ? Colors.green : Colors.red,
-                  ),
-                );
-              }
-            },
-            child: const Text('SAVE'),
-          ),
-        ],
+                  );
+                }
+              },
+              child: const Text('SAVE'),
+            ),
+          ],
+        ),
       ),
     );
   }

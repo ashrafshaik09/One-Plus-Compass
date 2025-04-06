@@ -30,8 +30,8 @@ class _CompassScreenState extends State<CompassScreen> with AutomaticKeepAliveCl
       
       locationProvider.getCurrentLocation().then((_) {
         if (locationProvider.currentPosition != null) {
-          // Calculate sun position when we get location
-          celestialProvider.calculateSunPosition(
+          // Calculate celestial positions when we get location
+          celestialProvider.calculateCelestialPositions(
             locationProvider.currentPosition!.latitude,
             locationProvider.currentPosition!.longitude,
           );
@@ -54,7 +54,7 @@ class _CompassScreenState extends State<CompassScreen> with AutomaticKeepAliveCl
           );
           
           // Recalculate celestial times when location changes
-          Provider.of<CelestialProvider>(context, listen: false).calculateSunPosition(
+          Provider.of<CelestialProvider>(context, listen: false).calculateCelestialPositions(
             locationProvider.currentPosition!.latitude,
             locationProvider.currentPosition!.longitude,
           );
@@ -403,6 +403,14 @@ class _CompassScreenState extends State<CompassScreen> with AutomaticKeepAliveCl
                 dayLength,
                 style: TextStyle(
                   fontSize: 12,
+                  color: Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+              Text(
+                "(+54s)", // Add the daylight change
+                style: TextStyle(
+                  fontSize: 10,
                   color: Colors.grey[600],
                   fontStyle: FontStyle.italic,
                 ),

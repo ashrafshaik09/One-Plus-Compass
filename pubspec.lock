@@ -41,6 +41,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.2"
+  bottom_bar_page_transition:
+    dependency: "direct main"
+    description:
+      name: bottom_bar_page_transition
+      sha256: "31c336240bbe9c1486c67fd3aec8b27c7d126de78ec9094e64c57117d338b0ad"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.0"
   characters:
     dependency: transitive
     description:
@@ -97,6 +105,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.8"
+  daylight:
+    dependency: "direct main"
+    description:
+      name: daylight
+      sha256: "5397bb889063eabcbca6a3b26258c950e62b7b6412be2ad75178e1fc6d8d9b0e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.0"
+  equatable:
+    dependency: transitive
+    description:
+      name: equatable
+      sha256: "567c64b3cb4cf82397aac55f4f0cbd3ca20d77c6c03bedbc4ceaddc08904aef7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.7"
   fake_async:
     dependency: transitive
     description:
@@ -224,6 +248,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.2"
+  hyper_effects:
+    dependency: "direct main"
+    description:
+      name: hyper_effects
+      sha256: "4d9182528d0eaaf040c083c2344db3379a0aa55a247850a33e979fe84c117efe"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.0"
   image:
     dependency: transitive
     description:
@@ -384,6 +416,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
+  ntp:
+    dependency: "direct main"
+    description:
+      name: ntp
+      sha256: "198db73e5059b334b50dbe8c626011c26576778ee9fc53f4c55c1d89d08ed2d2"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.0"
   package_info_plus:
     dependency: "direct main"
     description:
@@ -661,6 +701,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.1"
+  sunrise_sunset_calc:
+    dependency: "direct main"
+    description:
+      name: sunrise_sunset_calc
+      sha256: e5ef4a92c0271fb62873d57241fd9d9c1868e3f73e4cfb3de37f9dfd1811d0b9
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.0.0"
   term_glyph:
     dependency: transitive
     description:

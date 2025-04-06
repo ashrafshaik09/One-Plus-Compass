@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.compass_2"
-    compileSdkVersion = 35  // Step back to a stable SDK version
+    compileSdkVersion = 34  // Use stable SDK version
     ndkVersion = "23.1.7779620"
 
     compileOptions {
@@ -31,6 +31,12 @@ android {
             signingConfig = signingConfigs.debug
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            // Optimize debug builds for better performance during development
+            minifyEnabled false
+            shrinkResources false
+            zipAlignEnabled true
         }
     }
 

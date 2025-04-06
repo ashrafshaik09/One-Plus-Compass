@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hyper_effects/hyper_effects.dart';
 import 'package:provider/provider.dart';
 import 'package:compass_2/providers/compass_provider.dart';
 import 'package:compass_2/providers/location_provider.dart';
@@ -252,7 +253,12 @@ class _QiblaScreenState extends State<QiblaScreen> with AutomaticKeepAliveClient
           ],
         ),
       ),
-    );
+    ).scale(isNext ? 1.05 : 1.0)
+     .animate(
+       trigger: isNext,
+       duration: const Duration(milliseconds: 300),
+       curve: Curves.easeInOut,
+     );
   }
 
   Widget _buildNextPrayerInfo(Map<String, dynamic> nextPrayer) {
@@ -632,8 +638,12 @@ class QiblaCompassPainter extends CustomPainter {
               fontWeight: isCardinal ? FontWeight.bold : FontWeight.normal,
             ),
           ),
-          textDirection: TextDirection.ltr,
-        )..layout();
+        );
+        
+        // Set textDirection property separately
+        textPainter.textDirection = TextDirection.ltr;
+        
+        textPainter.layout();
 
         final labelRadius = radius * (isCardinal ? 0.7 : 0.75);
         textPainter.paint(

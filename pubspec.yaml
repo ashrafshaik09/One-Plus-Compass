@@ -40,6 +40,15 @@ dependencies:
   # App info
   package_info_plus: ^4.0.2
   
+  # Celestial calculations 
+  daylight: ^3.1.0
+  sunrise_sunset_calc: ^3.0.0
+  ntp: ^2.0.0
+  
+  # Improved transitions
+  hyper_effects: ^0.3.0
+  bottom_bar_page_transition: ^2.0.0
+  
   # Note: Removed 'suntime' package as we're implementing our own SunTime class
 
 dev_dependencies:

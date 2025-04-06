@@ -17,8 +17,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  // Initialize controller directly instead of using late
-  final PageController _pageController = PageController(initialPage: 0);
 
   final List<Widget> _screens = [
     const CompassScreen(),
@@ -27,18 +25,6 @@ class _HomeScreenState extends State<HomeScreen> {
     const TrailScreen(),
     const SettingsScreen(),
   ];
-
-  @override
-  void initState() {
-    super.initState();
-    // No need to initialize here as it's now initialized at declaration
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,13 +43,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         child: SafeArea(
-          child: PageView(
-            controller: _pageController,
-            onPageChanged: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
+          child: IndexedStack(
+            index: _currentIndex,
             children: _screens,
           ),
         ),
@@ -74,11 +55,6 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             _currentIndex = index;
           });
-          _pageController.animateToPage(
-            index,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
         },
         destinations: const [
           NavigationDestination(
