@@ -83,7 +83,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             
             Center(
               child: Text(
-                'Compass App ©${DateTime.now().year}',
+                'Complus © ${DateTime.now().year}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),

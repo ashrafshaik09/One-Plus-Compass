@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:compass_2/screens/compass_screen.dart';
 import 'package:compass_2/screens/qibla_screen.dart';
 import 'package:compass_2/screens/trail_screen.dart';
-import 'package:compass_2/screens/celestial_screen.dart'; // Updated import
+import 'package:compass_2/screens/celestial_screen.dart';
 import 'package:compass_2/screens/settings_screen.dart';
 import 'package:compass_2/providers/theme_provider.dart';
 import 'package:compass_2/utils/app_theme.dart';
@@ -17,14 +17,28 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  // Initialize controller directly instead of using late
+  final PageController _pageController = PageController(initialPage: 0);
 
   final List<Widget> _screens = [
     const CompassScreen(),
     const QiblaScreen(),
-    const CelestialScreen(), // Updated to use the CelestialScreen
+    const CelestialScreen(),
     const TrailScreen(),
     const SettingsScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // No need to initialize here as it's now initialized at declaration
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +57,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         child: SafeArea(
-          child: _screens[_currentIndex],
+          child: PageView(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            children: _screens,
+          ),
         ),
       ),
       bottomNavigationBar: NavigationBar(
@@ -52,6 +74,11 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             _currentIndex = index;
           });
+          _pageController.animateToPage(
+            index,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
         },
         destinations: const [
           NavigationDestination(
@@ -63,8 +90,8 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Qibla',
           ),
           NavigationDestination(
-            icon: Icon(Icons.terrain), // Could use wb_sunny or wb_twilight as alternatives
-            label: 'Celestial', // Updated label
+            icon: Icon(Icons.terrain),
+            label: 'Celestial',
           ),
           NavigationDestination(
             icon: Icon(Icons.route),

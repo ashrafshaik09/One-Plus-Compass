@@ -21,14 +21,16 @@ class CompassProvider with ChangeNotifier {
   
   // Text direction based on heading
   String get headingText {
-    if (_heading >= 337.5 || _heading < 22.5) return 'North';
-    if (_heading >= 22.5 && _heading < 67.5) return 'Northeast';
-    if (_heading >= 67.5 && _heading < 112.5) return 'East';
-    if (_heading >= 112.5 && _heading < 157.5) return 'Southeast';
-    if (_heading >= 157.5 && _heading < 202.5) return 'South';
-    if (_heading >= 202.5 && _heading < 247.5) return 'Southwest';
-    if (_heading >= 247.5 && _heading < 292.5) return 'West';
-    return 'Northwest';
+    double normalizedHeading = (_heading + 360) % 360;
+    if (normalizedHeading >= 337.5 || normalizedHeading < 22.5) return 'North';
+    if (normalizedHeading >= 22.5 && normalizedHeading < 67.5) return 'Northeast';
+    if (normalizedHeading >= 67.5 && normalizedHeading < 112.5) return 'East';
+    if (normalizedHeading >= 112.5 && normalizedHeading < 157.5) return 'Southeast';
+    if (normalizedHeading >= 157.5 && normalizedHeading < 202.5) return 'South';
+    if (normalizedHeading >= 202.5 && normalizedHeading < 247.5) return 'Southwest';
+    if (normalizedHeading >= 247.5 && normalizedHeading < 292.5) return 'West';
+    if (normalizedHeading >= 292.5 && normalizedHeading < 337.5) return 'Northwest';
+    return 'North';
   }
   
   CompassProvider() {
@@ -43,10 +45,11 @@ class CompassProvider with ChangeNotifier {
       // Start listening to compass events
       _compassSubscription = FlutterCompass.events!.listen((event) {
         if (event.heading != null) {
-          // Update heading
-          _heading = event.heading!;
+          // Fix: Ensure heading is always between 0 and 359 degrees
+          _heading = ((event.heading! % 360 + 360) % 360).floor().toDouble();
+          if (_heading == 360) _heading = 0; // Fix for exact 360 degree case
           
-          // Check if compass needs calibration based on accuracy
+          // Update calibration status
           _needsCalibration = event.accuracy == 0 || event.accuracy == -1;
           
           notifyListeners();

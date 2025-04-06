@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 
 class PrayerTimesProvider with ChangeNotifier {
   PrayerTimes? _prayerTimes;
-  String _timeZoneName = '';
+  final String _timeZoneName = '';
   DateTime? _lastCalculationDate;
   int _calculationMethod = 0; // 0 = Muslim World League (default)
   Coordinates? _coordinates; // Added to store coordinates
@@ -37,19 +37,30 @@ class PrayerTimesProvider with ChangeNotifier {
 
   // Calculate and cache prayer times
   void calculatePrayerTimes(double latitude, double longitude) {
-    final now = DateTime.now();
-    final date = DateComponents(now.year, now.month, now.day);
-    final params = _getCalculationParameters();
+    try {
+      final now = DateTime.now();
+      final date = DateComponents(now.year, now.month, now.day);
+      final params = _getCalculationParameters();
 
-    // Get coordinates and timezone
-    _coordinates = Coordinates(latitude, longitude); // Store coordinates
-    _timeZoneName = now.timeZoneName;
+      // Get timezone offset for the location
+      _coordinates = Coordinates(latitude, longitude);
+      final localDate = DateTime.now().toLocal();
+      
+      // Calculate prayer times with correct timezone offset
+      _prayerTimes = PrayerTimes(
+        _coordinates!, 
+        date, 
+        params,
+        utcOffset: localDate.timeZoneOffset,
+      );
+      _lastCalculationDate = localDate;
 
-    // Calculate prayer times
-    _prayerTimes = PrayerTimes(_coordinates!, date, params);
-    _lastCalculationDate = now;
-
-    notifyListeners();
+      notifyListeners();
+    } catch (e) {
+      print('Error calculating prayer times: $e');
+      _prayerTimes = null;
+      notifyListeners();
+    }
   }
 
   // Get the calculation parameters based on selected method
@@ -101,13 +112,17 @@ class PrayerTimesProvider with ChangeNotifier {
     return params;
   }
 
-  // Get next prayer info with improved time formatting
+  // Get next prayer info with improved time formatting and proper time zone handling
   Map<String, dynamic>? getNextPrayer() {
     if (_prayerTimes == null || _coordinates == null) return null;
 
+    // Ensure we're using local time for all comparisons
     final now = DateTime.now();
 
-    // Get prayer times for today
+    // Debug time values
+    print("Current time: ${DateFormat('HH:mm:ss').format(now)}");
+
+    // Get prayer times for today and ensure they're properly compared as local time
     final prayers = {
       'Fajr': _prayerTimes!.fajr,
       'Dhuhr': _prayerTimes!.dhuhr,
@@ -116,14 +131,24 @@ class PrayerTimesProvider with ChangeNotifier {
       'Isha': _prayerTimes!.isha,
     };
 
+    // Print each prayer time for debugging
+    prayers.forEach((name, time) {
+      print("$name time: ${DateFormat('HH:mm:ss').format(time)}");
+    });
+
     // Check if all prayers for today have passed
     bool allPassed = true;
     String nextPrayer = '';
     DateTime? nextPrayerTime;
 
     prayers.forEach((name, time) {
-      if (time.isAfter(now)) {
-        if (nextPrayerTime == null || time.isBefore(nextPrayerTime!)) {
+      // Compare hours and minutes only (ignore seconds and milliseconds)
+      final currentTimeMinutes = now.hour * 60 + now.minute;
+      final prayerTimeMinutes = time.hour * 60 + time.minute;
+      
+      if (prayerTimeMinutes >= currentTimeMinutes) {
+        if (nextPrayerTime == null || 
+            time.hour * 60 + time.minute < nextPrayerTime!.hour * 60 + nextPrayerTime!.minute) {
           nextPrayer = name;
           nextPrayerTime = time;
         }
@@ -143,7 +168,16 @@ class PrayerTimesProvider with ChangeNotifier {
 
     // Calculate remaining time with improved formatting
     if (nextPrayerTime != null) {
-      final difference = nextPrayerTime!.difference(now);
+      // Convert next prayer time to DateTime with today's date for correct difference calculation
+      final nextPrayerDateTime = DateTime(
+        now.year, 
+        now.month, 
+        allPassed ? now.day + 1 : now.day,
+        nextPrayerTime!.hour,
+        nextPrayerTime!.minute
+      );
+      
+      final difference = nextPrayerDateTime.difference(now);
       final hours = difference.inHours;
       final minutes = difference.inMinutes % 60;
 

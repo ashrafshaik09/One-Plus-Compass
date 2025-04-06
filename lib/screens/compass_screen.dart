@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:compass_2/providers/compass_provider.dart';
 import 'package:compass_2/providers/location_provider.dart';
+import 'package:compass_2/providers/celestial_provider.dart';
 import 'package:compass_2/widgets/compass_widget.dart';
 import 'package:compass_2/utils/app_theme.dart';
 
@@ -21,10 +22,21 @@ class _CompassScreenState extends State<CompassScreen> with AutomaticKeepAliveCl
   @override
   void initState() {
     super.initState();
-    // Request location when this screen is shown
+    
+    // Request location and initialize celestial data when screen is shown
     Future.microtask(() {
       final locationProvider = Provider.of<LocationProvider>(context, listen: false);
-      locationProvider.getCurrentLocation();
+      final celestialProvider = Provider.of<CelestialProvider>(context, listen: false);
+      
+      locationProvider.getCurrentLocation().then((_) {
+        if (locationProvider.currentPosition != null) {
+          // Calculate sun position when we get location
+          celestialProvider.calculateSunPosition(
+            locationProvider.currentPosition!.latitude,
+            locationProvider.currentPosition!.longitude,
+          );
+        }
+      });
     });
   }
 
@@ -37,6 +49,12 @@ class _CompassScreenState extends State<CompassScreen> with AutomaticKeepAliveCl
         // Calculate Qibla direction when location is available
         if (locationProvider.currentPosition != null) {
           compassProvider.calculateQiblaDirection(
+            locationProvider.currentPosition!.latitude,
+            locationProvider.currentPosition!.longitude,
+          );
+          
+          // Recalculate celestial times when location changes
+          Provider.of<CelestialProvider>(context, listen: false).calculateSunPosition(
             locationProvider.currentPosition!.latitude,
             locationProvider.currentPosition!.longitude,
           );
@@ -100,11 +118,14 @@ class _CompassScreenState extends State<CompassScreen> with AutomaticKeepAliveCl
                       Icons.terrain,
                     ),
                     const SizedBox(width: 16),
-                    _buildInfoCard(
-                      context,
-                      "Qibla Direction",
-                      "${compassProvider.qiblaAngle.toStringAsFixed(0)}°",
-                      Icons.mosque,
+                    // Replace Qibla card with Sun Times card
+                    Consumer<CelestialProvider>(
+                      builder: (context, celestialProvider, _) => _buildSunCard(
+                        context,
+                        celestialProvider.formattedSunrise,
+                        celestialProvider.formattedSunset,
+                        celestialProvider.daylightDuration,
+                      ),
                     ),
                   ],
                 ),
@@ -318,6 +339,77 @@ class _CompassScreenState extends State<CompassScreen> with AutomaticKeepAliveCl
             child: Text(text),
           ),
         ],
+      ),
+    );
+  }
+
+  // Improved sun card with better time display
+  Widget _buildSunCard(
+    BuildContext context,
+    String sunrise,
+    String sunset,
+    String dayLength,
+  ) {
+    return Expanded(
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.wb_twilight, color: Colors.amber, size: 28),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Today',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.wb_sunny_outlined, 
+                       color: Colors.orange.shade300, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    sunrise,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.nights_stay_outlined, 
+                       color: Colors.indigo.shade300, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    sunset,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                dayLength,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

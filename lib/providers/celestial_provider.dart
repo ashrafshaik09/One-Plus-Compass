@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'dart:math' as math;
 
 // Custom SunTime class to calculate sunrise/sunset times
 class SunTime {
@@ -10,16 +11,32 @@ class SunTime {
     sunrise = _calculateSunrise(date, latitude, longitude),
     sunset = _calculateSunset(date, latitude, longitude);
 
-  // Simple calculation for sunrise (approximation)
+  // Improved calculation for sunrise (still an approximation but with better time handling)
   static DateTime? _calculateSunrise(DateTime date, double latitude, double longitude) {
-    // Base sunrise time (approximation - more accurate would use astronomical calculations)
-    final baseHour = 6; // 6 AM approximate sunrise
-    final longitudeHour = longitude / 15; // 15 degrees per hour
+    // Base sunrise time adjusted for season (approximate)
+    double baseHour = 6.0; // 6 AM approximate base sunrise
+    
+    // Adjust for season - earlier in summer, later in winter
+    // Northern hemisphere: summer around June (month 6), winter around December (month 12)
+    // Southern hemisphere: opposite
+    final month = date.month;
+    final seasonalAdjustment = latitude >= 0 
+        ? -0.5 * math.cos((month - 1) * math.pi / 6) // Northern hemisphere
+        : 0.5 * math.cos((month - 1) * math.pi / 6);  // Southern hemisphere
+    
+    baseHour += seasonalAdjustment;
     
     // Adjust for longitude (east is earlier, west is later)
-    final adjustedHour = baseHour - longitudeHour;
+    // 15 degrees corresponds to 1 hour
+    final longitudeHour = longitude / 15.0;
     
-    // Create sunrise DateTime
+    // Current timezone offset in hours
+    final timezoneOffset = date.timeZoneOffset.inHours;
+    
+    // Adjusted hour = base + seasonal adjustment - longitude effect + timezone offset
+    final adjustedHour = baseHour - longitudeHour + timezoneOffset;
+    
+    // Create sunrise DateTime in local time
     return DateTime(
       date.year, 
       date.month, 
@@ -29,14 +46,29 @@ class SunTime {
     );
   }
   
-  // Simple calculation for sunset (approximation)
+  // Improved calculation for sunset (still an approximation but with better time handling)
   static DateTime? _calculateSunset(DateTime date, double latitude, double longitude) {
-    // Base sunset time (approximation)
-    final baseHour = 18; // 6 PM approximate sunset
-    final longitudeHour = longitude / 15; // 15 degrees per hour
+    // Base sunset time adjusted for season (approximate)
+    double baseHour = 18.0; // 6 PM approximate base sunset
     
-    // Adjust for longitude
-    final adjustedHour = baseHour - longitudeHour;
+    // Adjust for season - later in summer, earlier in winter
+    // Northern hemisphere: summer around June (month 6), winter around December (month 12)
+    // Southern hemisphere: opposite
+    final month = date.month;
+    final seasonalAdjustment = latitude >= 0 
+        ? 0.5 * math.cos((month - 1) * math.pi / 6) // Northern hemisphere
+        : -0.5 * math.cos((month - 1) * math.pi / 6);  // Southern hemisphere
+    
+    baseHour += seasonalAdjustment;
+    
+    // Adjust for longitude (east is earlier, west is later)
+    final longitudeHour = longitude / 15.0;
+    
+    // Current timezone offset in hours
+    final timezoneOffset = date.timeZoneOffset.inHours;
+    
+    // Adjusted hour = base + seasonal adjustment - longitude effect + timezone offset
+    final adjustedHour = baseHour - longitudeHour + timezoneOffset;
     
     // Create sunset DateTime
     return DateTime(
@@ -120,10 +152,21 @@ class CelestialProvider with ChangeNotifier {
     }
   }
   
-  // Format time to 12-hour format
+  // Format time to 12-hour format with improved handling
   String formatTime(DateTime? time) {
     if (time == null) return '-- : --';
-    return DateFormat('h:mm a').format(time);
+    
+    // Use the current date for consistency and just take the time component
+    final now = DateTime.now();
+    final adjustedTime = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      time.hour,
+      time.minute
+    );
+    
+    return DateFormat('h:mm a').format(adjustedTime);
   }
   
   // Get sun position direction as string
