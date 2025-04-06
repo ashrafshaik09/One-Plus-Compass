@@ -14,6 +14,10 @@ class CompassWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Normalize the angles to ensure positive values
+    final normalizedHeading = (heading % 360 + 360) % 360;
+    final normalizedQiblaAngle = (qiblaAngle % 360 + 360) % 360;
+
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -34,50 +38,45 @@ class CompassWidget extends StatelessWidget {
           ),
         ),
         
-        // Rotatable compass card - use RepaintBoundary for better performance
-        RepaintBoundary(
-          child: Transform.rotate(
-            angle: -heading * (math.pi / 180),
-            child: CustomPaint(
-              size: const Size(280, 280),
-              painter: CompassPainter(),
-            ),
-          ),
-        ),
-        
-        // Direction pointer (new) - always points forward
+        // Static red triangle direction indicator at top
         Positioned(
           top: 0,
-          child: Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: Colors.red,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 4,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
+          child: CustomPaint(
+            size: const Size(24, 24),
+            painter: DirectionTrianglePainter(),
           ),
         ),
         
-        // Direction line (new) - connects center to pointer
-        Container(
-          width: 4,
-          height: 150,
-          color: Colors.red.withOpacity(0.8),
-          alignment: Alignment.topCenter,
+        // Rotatable compass card with improved visibility
+        Transform.rotate(
+          angle: -normalizedHeading * (math.pi / 180),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 280,
+                height: 280,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.transparent,
+                  border: Border.all(
+                    color: Colors.grey.shade300,
+                    width: 1,
+                  ),
+                ),
+              ),
+              CustomPaint(
+                size: const Size(280, 280),
+                painter: CompassPainter(),
+              ),
+            ],
+          ),
         ),
         
         // Qibla direction indicator - only show if we have a valid angle
         if (qiblaAngle > 0)
           Transform.rotate(
-            angle: (qiblaAngle - heading) * (math.pi / 180),
+            angle: (normalizedQiblaAngle - normalizedHeading) * (math.pi / 180),
             child: Container(
               width: 250,
               height: 250,
@@ -90,10 +89,10 @@ class CompassWidget extends StatelessWidget {
             ),
           ),
         
-        // Center point with heading indicator
+        // Center point
         Container(
-          width: 100,
-          height: 100,
+          width: 80,
+          height: 80,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Colors.white,
@@ -107,9 +106,9 @@ class CompassWidget extends StatelessWidget {
           ),
           child: Center(
             child: Transform.rotate(
-              angle: -heading * (math.pi / 180),
+              angle: -normalizedHeading * (math.pi / 180),
               child: CustomPaint(
-                size: const Size(80, 80),
+                size: const Size(60, 60),
                 painter: HeadingIndicatorPainter(),
               ),
             ),
@@ -118,6 +117,27 @@ class CompassWidget extends StatelessWidget {
       ],
     );
   }
+}
+
+// Add new DirectionTrianglePainter
+class DirectionTrianglePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.red
+      ..style = PaintingStyle.fill;
+
+    final path = Path()
+      ..moveTo(size.width / 2, 0)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class CompassPainter extends CustomPainter {
@@ -169,7 +189,7 @@ class CompassPainter extends CustomPainter {
       fontWeight: FontWeight.w600,
     );
     
-    // Draw main cardinal points
+    // Updated cardinal points rendering
     cardinalPoints.forEach((direction, degrees) {
       final angle = degrees * (math.pi / 180);
       final x = center.dx + radius * 0.7 * math.sin(angle);
@@ -177,7 +197,11 @@ class CompassPainter extends CustomPainter {
       
       textPainter.text = TextSpan(
         text: direction,
-        style: cardinalStyle,
+        style: TextStyle(
+          color: direction == 'N' ? Colors.red : AppTheme.textPrimary,
+          fontSize: 24, // Increased size for better visibility
+          fontWeight: FontWeight.bold,
+        ),
       );
       textPainter.layout();
       textPainter.paint(
