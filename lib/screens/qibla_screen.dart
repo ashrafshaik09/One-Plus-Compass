@@ -191,6 +191,17 @@ class _QiblaScreenState extends State<QiblaScreen> with AutomaticKeepAliveClient
   }
 
   Widget _buildPrayerTimesList(PrayerTimesProvider provider) {
+    // Ensure prayer times are calculated
+    if (provider.fajrTime == null) {
+      final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+      if (locationProvider.currentPosition != null) {
+        provider.calculatePrayerTimes(
+          locationProvider.currentPosition!.latitude,
+          locationProvider.currentPosition!.longitude,
+        );
+      }
+    }
+
     return Container(
       height: 100,
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -199,6 +210,7 @@ class _QiblaScreenState extends State<QiblaScreen> with AutomaticKeepAliveClient
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           _buildPrayerTimeCard('Fajr', provider.formattedFajr, Icons.wb_twilight),
+          _buildPrayerTimeCard('Sunrise', provider.formattedSunrise, Icons.wb_sunny),
           _buildPrayerTimeCard('Dhuhr', provider.formattedDhuhr, Icons.wb_sunny),
           _buildPrayerTimeCard('Asr', provider.formattedAsr, Icons.wb_sunny_outlined),
           _buildPrayerTimeCard('Maghrib', provider.formattedMaghrib, Icons.nights_stay_outlined),

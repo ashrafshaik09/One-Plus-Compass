@@ -13,6 +13,10 @@ void main() async {
   // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Initialize Hive
+  final locationProvider = LocationProvider();
+  await locationProvider.initHive();
+  
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,

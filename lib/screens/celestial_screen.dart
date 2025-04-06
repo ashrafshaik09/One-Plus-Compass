@@ -3,9 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:compass_2/providers/celestial_provider.dart';
 import 'package:compass_2/providers/location_provider.dart';
 import 'package:compass_2/providers/compass_provider.dart';
-import 'package:compass_2/utils/app_theme.dart';
-import 'dart:math' as math;
-import 'package:intl/intl.dart' as intl;
 // import 'package:moon_phase/moon_widget.dart';
 import 'package:compass_2/widgets/moon_widget.dart';
 

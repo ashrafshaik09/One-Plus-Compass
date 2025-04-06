@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:compass_2/models/trail_path.dart';
 
 class LocationData {
   final double latitude;
@@ -30,7 +32,6 @@ class LocationData {
     this.placeName,
   });
   
-  // Added serialization methods for saving paths
   Map<String, dynamic> toJson() => {
     'latitude': latitude,
     'longitude': longitude,
@@ -61,8 +62,8 @@ class SavedPath {
   final String name;
   final DateTime createdAt;
   final List<LocationData> points;
-  final double distance; // in meters
-  final double elevationGain; // in meters
+  final double distance;
+  final double elevationGain;
   
   SavedPath({
     required this.id,
@@ -101,10 +102,8 @@ class LocationProvider with ChangeNotifier {
   Timer? _positionUpdateTimer;
   bool _isRecordingPath = false;
   
-  // Add saved paths
   List<SavedPath> _savedPaths = [];
   
-  // Getters
   LocationData? get currentPosition => _currentPosition;
   bool get isLoading => _isLoading;
   String get errorMessage => _errorMessage;
@@ -112,72 +111,55 @@ class LocationProvider with ChangeNotifier {
   bool get isRecordingPath => _isRecordingPath;
   List<SavedPath> get savedPaths => _savedPaths;
   
-  // Improved elevation calculation to handle real-world issues
   double get currentElevation {
     if (_currentPosition == null) return 0.0;
     double value = _currentPosition!.altitude;
-    
-    // Handle invalid values - some devices report negative values
-    // when they should be positive (elevation above sea level)
-    if (value < -1000) return 0.0; // Likely a sensor error
-    
+    if (value < -1000) return 0.0;
     return value;
   }
   
-  // Formatted elevation with better handling of edge cases
   String get elevationText {
     if (_currentPosition == null) return "-- m";
-    
     double elevation = _currentPosition!.altitude;
-    
-    // Handle potential sensor errors (extremely negative values)
     if (elevation < -1000) {
       return "Sensor error";
     }
-    
-    // Format based on whether it's below sea level
     if (elevation < 0) {
       return "${elevation.abs().toStringAsFixed(1)} m (below sea level)";
     }
     return "${elevation.toStringAsFixed(1)} m";
   }
   
-  // New getter for safe elevation that validates and corrects common issues
   double get safeElevation {
     if (_currentPosition == null) return 0.0;
-    
-    // Get raw altitude from position
     double rawElevation = _currentPosition!.altitude;
-    
-    // Apply validation logic
-    // 1. If sensor reports extreme values (below -1000m), assume sensor error
     if (rawElevation < -1000) return 0.0;
-    
-    // 2. If sensor reports small negative values when likely at sea level
     if (rawElevation > -10 && rawElevation < 0) {
-      // If we're near coastline or at low accuracy, assume sea level
       if (_currentPosition!.accuracy > 20) return 0.0;
     }
-    
-    // 3. If sensor reports unrealistically high elevations
-    if (rawElevation > 8848) { // Higher than Everest
+    if (rawElevation > 8848) {
       return 8848.0;
     }
-    
     return rawElevation;
   }
   
   LocationProvider() {
     _initializeLocation();
     _loadSavedPaths();
+    initHive();
   }
   
-  // Load saved paths from SharedPreferences
+  Future<void> initHive() async {
+    await Hive.initFlutter();
+    Hive.registerAdapter(TrailPathAdapter());
+    Hive.registerAdapter(PathPointAdapter());
+    await Hive.openBox<TrailPath>('trails');
+  }
+
   Future<void> _loadSavedPaths() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedPathsJson = prefs.getString('saved_paths');
-      
       if (savedPathsJson != null) {
         final List<dynamic> decoded = jsonDecode(savedPathsJson);
         _savedPaths = decoded.map((json) => SavedPath.fromJson(json)).toList();
@@ -190,132 +172,56 @@ class LocationProvider with ChangeNotifier {
     }
   }
   
-  // Save current path to persistent storage
   Future<bool> saveCurrentPath(String name) async {
     if (_pathHistory.isEmpty) return false;
     
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final box = Hive.box<TrailPath>('trails');
       
-      // Create a deep copy of the path history
-      // NOTE: Fixing the deep copy issue - List.from doesn't create a deep copy
-      final List<LocationData> pathCopy = _pathHistory.map((location) => 
-        LocationData(
-          latitude: location.latitude,
-          longitude: location.longitude, 
-          altitude: location.altitude,
-          accuracy: location.accuracy,
-          heading: location.heading,
-          speed: location.speed,
-          speedAccuracy: location.speedAccuracy,
-          time: location.time,
-          placeName: location.placeName,
-        )
-      ).toList();
+      final pathPoints = _pathHistory.map((loc) => PathPoint(
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        altitude: loc.altitude,
+        placeName: loc.placeName,
+      )).toList();
       
-      // Calculate statistics - using our copied path to prevent race conditions
-      final totalDistance = _calculatePathDistance();
-      final elevationGain = _calculateElevationGain();
-      
-      // Create new saved path with a unique ID
-      var newPath = SavedPath(
+      final trailPath = TrailPath(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         name: name,
         createdAt: DateTime.now(),
-        points: pathCopy,
-        distance: totalDistance,
-        elevationGain: elevationGain,
+        points: pathPoints,
+        distance: _calculatePathDistance(),
+        elevationGain: _calculateElevationGain(),
       );
       
-      // Validate JSON serialization works before saving
-      try {
-        final testJson = newPath.toJson();
-        // This is a validation test - if it fails, the catch block will handle it
-        final jsonString = jsonEncode(testJson);
-        
-        // Check if JSON string is too large (SharedPreferences has ~2MB limit)
-        if (jsonString.length > 1000000) { // 1MB safety limit
-          // If path is too large, simplify by sampling points
-          final simplifiedPoints = _simplifyPath(pathCopy);
-          newPath = SavedPath(
-            id: newPath.id,
-            name: name,
-            createdAt: newPath.createdAt,
-            points: simplifiedPoints,
-            distance: totalDistance,
-            elevationGain: elevationGain,
-          );
-        }
-      } catch (e) {
-        print('JSON serialization validation failed: $e');
-        return false;
-      }
-      
-      // Add to saved paths list
-      _savedPaths.add(newPath);
-      
-      // Convert all paths to JSON with safety checks
-      final List<Map<String, dynamic>> pathsJson = [];
-      for (final path in _savedPaths) {
-        try {
-          pathsJson.add(path.toJson());
-        } catch (e) {
-          print('Error converting path to JSON: $e');
-          // Continue with other paths
-        }
-      }
-      
-      // Save to SharedPreferences with error handling
-      try {
-        final jsonData = jsonEncode(pathsJson);
-        await prefs.setString('saved_paths', jsonData);
-      } catch (e) {
-        print('Error saving to SharedPreferences: $e');
-        return false;
-      }
-      
-      // Clear current path history after successful save
+      await box.add(trailPath);
       _pathHistory.clear();
-      
       notifyListeners();
       return true;
-    } catch (e, stackTrace) {
-      print('Error saving path: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
+      print('Error saving trail: $e');
       return false;
     }
   }
   
-  // New method to simplify path by reducing number of points
   List<LocationData> _simplifyPath(List<LocationData> path) {
-    if (path.length <= 100) return path; // Don't simplify small paths
-    
-    // Simple algorithm to keep only every Nth point
+    if (path.length <= 100) return path;
     final simplificationFactor = (path.length / 100).ceil();
     final simplified = <LocationData>[];
-    
-    // Always keep first and last points
     simplified.add(path.first);
-    
-    // Add sampled points
     for (int i = simplificationFactor; i < path.length - simplificationFactor; i += simplificationFactor) {
       simplified.add(path[i]);
     }
-    
-    // Add last point
     simplified.add(path.last);
-    
     return simplified;
   }
   
-  // Delete a saved path
   Future<void> deleteSavedPath(String id) async {
     _savedPaths.removeWhere((path) => path.id == id);
     await _persistSavedPaths();
     notifyListeners();
   }
   
-  // Load a saved path to current path history
   void loadSavedPath(String id) {
     final savedPath = _savedPaths.firstWhere((path) => path.id == id);
     _pathHistory.clear();
@@ -323,12 +229,9 @@ class LocationProvider with ChangeNotifier {
     notifyListeners();
   }
   
-  // Save paths to SharedPreferences with improved error handling
   Future<void> _persistSavedPaths() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
-      // Convert paths to JSON with careful handling
       final List<Map<String, dynamic>> pathsJson = [];
       for (final path in _savedPaths) {
         try {
@@ -336,51 +239,38 @@ class LocationProvider with ChangeNotifier {
           pathsJson.add(pathJson);
         } catch (e) {
           print('Error converting path ${path.id} to JSON: $e');
-          // Continue with other paths if one fails
         }
       }
-      
-      // Save the valid paths to SharedPreferences
       final jsonData = jsonEncode(pathsJson);
       await prefs.setString('saved_paths', jsonData);
-      
     } catch (e) {
       print('Error persisting saved paths: $e');
     }
   }
   
-  // Calculate total path distance in meters
   double _calculatePathDistance() {
     if (_pathHistory.length < 2) return 0;
-    
     double totalDistance = 0;
     for (int i = 0; i < _pathHistory.length - 1; i++) {
       final point1 = _pathHistory[i];
       final point2 = _pathHistory[i + 1];
-      
-      // Using Haversine formula
-      const int earthRadius = 6371000; // in meters
+      const int earthRadius = 6371000;
       final lat1 = point1.latitude * (math.pi / 180);
       final lat2 = point2.latitude * (math.pi / 180);
       final dLat = (point2.latitude - point1.latitude) * (math.pi / 180);
       final dLon = (point2.longitude - point1.longitude) * (math.pi / 180);
-      
       final a = math.sin(dLat/2) * math.sin(dLat/2) +
                 math.cos(lat1) * math.cos(lat2) *
                 math.sin(dLon/2) * math.sin(dLon/2);
       final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a));
       final distance = earthRadius * c;
-      
       totalDistance += distance;
     }
-    
     return totalDistance;
   }
   
-  // Calculate elevation gain (positive changes only)
   double _calculateElevationGain() {
     if (_pathHistory.length < 2) return 0;
-    
     double totalGain = 0;
     for (int i = 0; i < _pathHistory.length - 1; i++) {
       final elevChange = _pathHistory[i + 1].altitude - _pathHistory[i].altitude;
@@ -388,41 +278,32 @@ class LocationProvider with ChangeNotifier {
         totalGain += elevChange;
       }
     }
-    
     return totalGain;
   }
 
-  // Make path calculation methods public
   double calculatePathDistance() {
     if (_pathHistory.length < 2) return 0;
-    
     double totalDistance = 0;
     for (int i = 0; i < _pathHistory.length - 1; i++) {
       final point1 = _pathHistory[i];
       final point2 = _pathHistory[i + 1];
-      
-      // Using Haversine formula
-      const int earthRadius = 6371000; // in meters
+      const int earthRadius = 6371000;
       final lat1 = point1.latitude * (math.pi / 180);
       final lat2 = point2.latitude * (math.pi / 180);
       final dLat = (point2.latitude - point1.latitude) * (math.pi / 180);
       final dLon = (point2.longitude - point1.longitude) * (math.pi / 180);
-      
       final a = math.sin(dLat/2) * math.sin(dLat/2) +
                 math.cos(lat1) * math.cos(lat2) *
                 math.sin(dLon/2) * math.sin(dLon/2);
       final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a));
       final distance = earthRadius * c;
-      
       totalDistance += distance;
     }
-    
     return totalDistance;
   }
 
   double calculateElevationGain() {
     if (_pathHistory.length < 2) return 0;
-    
     double totalGain = 0;
     for (int i = 0; i < _pathHistory.length - 1; i++) {
       final elevChange = _pathHistory[i + 1].altitude - _pathHistory[i].altitude;
@@ -430,7 +311,6 @@ class LocationProvider with ChangeNotifier {
         totalGain += elevChange;
       }
     }
-    
     return totalGain;
   }
   
@@ -445,8 +325,6 @@ class LocationProvider with ChangeNotifier {
           return;
         }
       }
-
-      // Check and request location permission
       await _checkPermission();
     } catch (e) {
       _errorMessage = 'Error initializing location: $e';
@@ -456,7 +334,6 @@ class LocationProvider with ChangeNotifier {
   
   Future<void> _checkPermission() async {
     final status = await permission.Permission.location.status;
-    
     if (status.isGranted) {
       getCurrentLocation();
     } else if (status.isDenied) {
@@ -467,10 +344,8 @@ class LocationProvider with ChangeNotifier {
   Future<void> requestLocationPermission() async {
     _isLoading = true;
     notifyListeners();
-    
     try {
       final permissionStatus = await permission.Permission.location.request();
-      
       if (permissionStatus.isGranted) {
         var permissionStatus = await _location.hasPermission();
         if (permissionStatus == loc.PermissionStatus.denied) {
@@ -482,7 +357,6 @@ class LocationProvider with ChangeNotifier {
             return;
           }
         }
-        
         getCurrentLocation();
       } else {
         _errorMessage = 'Location permission is required for compass functionality';
@@ -500,11 +374,9 @@ class LocationProvider with ChangeNotifier {
     _isLoading = true;
     _errorMessage = '';
     notifyListeners();
-    
     try {
       _location.enableBackgroundMode(enable: true);
       _location.changeSettings(accuracy: loc.LocationAccuracy.high);
-      
       final locationData = await _location.getLocation();
       _currentPosition = LocationData(
         latitude: locationData.latitude ?? 0.0,
@@ -516,10 +388,7 @@ class LocationProvider with ChangeNotifier {
         speedAccuracy: locationData.speedAccuracy ?? 0.0,
         time: locationData.time ?? 0.0,
       );
-
-      // Fetch location name
       await _getPlaceName();
-      
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -529,20 +398,16 @@ class LocationProvider with ChangeNotifier {
     }
   }
   
-  // New method to get place name
   Future<void> _getPlaceName() async {
     if (_currentPosition == null) return;
-    
     try {
       List<Placemark> placemarks = await placemarkFromCoordinates(
         _currentPosition!.latitude,
         _currentPosition!.longitude,
       );
-      
       if (placemarks.isNotEmpty) {
         final place = placemarks.first;
         final List<String> addressParts = [];
-        
         if (place.locality?.isNotEmpty == true) {
           addressParts.add(place.locality!);
         }
@@ -552,28 +417,21 @@ class LocationProvider with ChangeNotifier {
         if (place.country?.isNotEmpty == true) {
           addressParts.add(place.country!);
         }
-        
         _currentPosition!.placeName = addressParts.join(', ');
         notifyListeners();
       }
     } catch (e) {
       print('Error getting place name: $e');
-      // Don't update UI on error here, just log it
     }
   }
   
   void startRecordingPath() {
     if (_isRecordingPath) return;
-    
     _isRecordingPath = true;
     _pathHistory.clear();
-    
-    // Add the current position as the first point
     if (_currentPosition != null) {
       _pathHistory.add(_currentPosition!);
     }
-    
-    // Start recording path every 5 seconds
     _positionUpdateTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
       try {
         final locationData = await _location.getLocation();
@@ -587,21 +445,17 @@ class LocationProvider with ChangeNotifier {
           speedAccuracy: locationData.speedAccuracy ?? 0.0,
           time: locationData.time ?? 0.0,
         );
-        
         _currentPosition = position;
         _pathHistory.add(position);
         notifyListeners();
       } catch (e) {
-        // Silently handle error, but keep timer running
       }
     });
-    
     notifyListeners();
   }
   
   void stopRecordingPath() {
     if (!_isRecordingPath) return;
-    
     _isRecordingPath = false;
     _positionUpdateTimer?.cancel();
     _positionUpdateTimer = null;

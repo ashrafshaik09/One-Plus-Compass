@@ -6,6 +6,7 @@ import 'package:compass_2/utils/app_theme.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:math' as math;
+import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 
 class TrailScreen extends StatefulWidget {
   const TrailScreen({super.key});
@@ -462,74 +463,52 @@ class _TrailScreenState extends State<TrailScreen> with AutomaticKeepAliveClient
     return '${date.day}/${date.month}/${date.year}';
   }
   
+  bool isSaving = false; // Move to class level
+  
   void _showSavePathDialog(BuildContext context, LocationProvider provider) {
-    bool isSaving = false;
+    final TextEditingController controller = TextEditingController();
     
     showDialog(
       context: context,
-      barrierDismissible: false, // Prevent dismissal while saving
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) => KeyboardVisibilityBuilder(
+        builder: (context, isKeyboardVisible) => AlertDialog(
           title: const Text('Save Path'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
-                controller: _pathNameController,
+                controller: controller,
                 decoration: const InputDecoration(
                   hintText: 'Enter path name',
                   border: OutlineInputBorder(),
                 ),
-                enabled: !isSaving,
                 autofocus: true,
+                enabled: !isSaving,
+                onSubmitted: (value) async {
+                  if (value.trim().isNotEmpty) {
+                    await _savePath(dialogContext, provider, value.trim(), setState);
+                  }
+                },
               ),
               if (isSaving) ...[
                 const SizedBox(height: 16),
                 const LinearProgressIndicator(),
-                const SizedBox(height: 8),
-                const Text('Saving path data...', style: TextStyle(color: Colors.grey)),
-              ]
+              ],
             ],
           ),
           actions: [
             TextButton(
-              onPressed: isSaving ? null : () => Navigator.pop(context),
+              onPressed: isSaving ? null : () {
+                controller.dispose();
+                Navigator.pop(dialogContext);
+              },
               child: const Text('CANCEL'),
             ),
             FilledButton(
               onPressed: isSaving ? null : () async {
-                if (_pathNameController.text.trim().isNotEmpty) {
-                  setState(() => isSaving = true);
-                  
-                  // Track points count for diagnostics
-                  final pointCount = provider.pathHistory.length;
-                  
-                  final success = await provider.saveCurrentPath(
-                    _pathNameController.text.trim(),
-                  );
-                  
-                  // Even if we pop later, let's clear the text field now
-                  final enteredName = _pathNameController.text;
-                  _pathNameController.clear();
-                  
-                  Navigator.pop(context);
-                  
-                  // Show detailed feedback
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        success 
-                          ? 'Path "$enteredName" saved successfully ($pointCount points)' 
-                          : 'Error saving path: Data may be too large or invalid',
-                      ),
-                      backgroundColor: success ? Colors.green : Colors.red,
-                      action: success ? null : SnackBarAction(
-                        label: 'RETRY',
-                        onPressed: () => _showSavePathDialog(context, provider),
-                      ),
-                      duration: const Duration(seconds: 4),
-                    ),
-                  );
+                if (controller.text.trim().isNotEmpty) {
+                  await _savePath(dialogContext, provider, controller.text.trim(), setState);
                 }
               },
               child: const Text('SAVE'),
@@ -538,6 +517,43 @@ class _TrailScreenState extends State<TrailScreen> with AutomaticKeepAliveClient
         ),
       ),
     );
+  }
+
+  // Separate the save logic into its own method
+  Future<void> _savePath(
+    BuildContext context,
+    LocationProvider provider,
+    String pathName,
+    StateSetter setState,
+  ) async {
+    setState(() => isSaving = true);
+    
+    // Track points count for diagnostics
+    final pointCount = provider.pathHistory.length;
+    
+    final success = await provider.saveCurrentPath(pathName.trim());
+    
+    // Pop the dialog first
+    Navigator.pop(context);
+    
+    // Show feedback after dialog is closed
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success 
+              ? 'Path "$pathName" saved successfully ($pointCount points)' 
+              : 'Error saving path: Data may be too large or invalid',
+          ),
+          backgroundColor: success ? Colors.green : Colors.red,
+          action: success ? null : SnackBarAction(
+            label: 'RETRY',
+            onPressed: () => _showSavePathDialog(context, provider),
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
   
   Widget _buildStatItem(String label, String value, IconData icon) {
